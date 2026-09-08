@@ -1,4 +1,4 @@
-crapes FAQ content from a micro1.ai interview-prep page, writes it to a PDF, and syncs it into a SQL Server `faqs` table.
+Scrapes FAQ content from a micro1.ai interview-prep page, writes it to a PDF, and syncs it into a SQL Server `faqs` table.
 
 ## What it does
 
