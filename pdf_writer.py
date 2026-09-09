@@ -5,12 +5,15 @@ Renders extracted FAQ data to a PDF file using fpdf2.
 """
 
 import re
+from typing import List, Optional
 
 from fpdf import FPDF
 from fpdf.errors import FPDFException
 
+from models import Faq
 
-def split_into_sentences(text):
+
+def split_into_sentences(text: str) -> List[str]:
     """
     Naive sentence splitter (splits on '. ' while avoiding common abbreviations).
     Good enough for straightforward FAQ-style answers.
@@ -19,7 +22,7 @@ def split_into_sentences(text):
     return [s.strip() for s in sentences if s.strip()]
 
 
-def sanitize_text(text):
+def sanitize_text(text: Optional[str]) -> Optional[str]:
     """
     Replace common Unicode punctuation with Latin-1 safe equivalents,
     since the default Helvetica font only supports Latin-1.
@@ -27,7 +30,7 @@ def sanitize_text(text):
     if not text:
         return text
 
-    replacements = {
+    replacements: dict[str, str] = {
         "\u2014": "-",   # em dash —
         "\u2013": "-",   # en dash –
         "\u2018": "'",   # left single quote '
@@ -44,7 +47,7 @@ def sanitize_text(text):
     return text.encode("latin-1", errors="ignore").decode("latin-1")
 
 
-def write_faqs_to_pdf(faqs, output_file, page_title):
+def write_faqs_to_pdf(faqs: List[Faq], output_file: str, page_title: str) -> None:
     """
     Write FAQ title/answer pairs to a PDF file using fpdf2.
 
@@ -55,6 +58,7 @@ def write_faqs_to_pdf(faqs, output_file, page_title):
             missing directory, disk full, etc.) - left as OSError since
             callers may want to distinguish this from content errors.
     """
+    i: int = 0
     try:
         pdf = FPDF()
         pdf.set_auto_page_break(auto=True, margin=20)
@@ -65,10 +69,9 @@ def write_faqs_to_pdf(faqs, output_file, page_title):
         pdf.multi_cell(0, 10, sanitize_text(page_title.replace("-", " ").title()))
         pdf.ln(6)
 
-        i = 0
         for i, faq in enumerate(faqs, 1):
-            question = faq.get("title") or ""
-            answers = faq.get("answers") or ([faq["answer"]] if faq.get("answer") else [])
+            question: str = faq.get("question") or ""
+            answers: List[str] = faq.get("answers") or ([faq["answer"]] if faq.get("answer") else [])
 
             # Question - bold
             pdf.set_font("Helvetica", "B", 12)

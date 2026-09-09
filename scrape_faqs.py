@@ -9,6 +9,7 @@ Usage:
 """
 
 import sys
+from typing import List, NoReturn
 
 import requests
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,26 +17,31 @@ from sqlalchemy.exc import SQLAlchemyError
 from scraper import fetch_html, extract_faqs
 from pdf_writer import write_faqs_to_pdf
 from db import replace_faqs_in_sql
+from models import Faq
 
 
-def main():
+def _usage_and_exit() -> NoReturn:
+    print("Usage: python scrape_faqs.py <page-slug>")
+    print("Example: python scrape_faqs.py python-developer-interview-questions")
+    sys.exit(1)
+
+
+def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: python scrape_faqs.py <page-slug>")
-        print("Example: python scrape_faqs.py python-developer-interview-questions")
-        sys.exit(1)
+        _usage_and_exit()
 
-    title = sys.argv[1]
+    title: str = sys.argv[1]
 
     print(f"Fetching page for '{title}' ...")
     try:
-        html = fetch_html(title)
+        html: str = fetch_html(title)
     except requests.exceptions.RequestException as e:
         print(f"Error: failed to fetch page: {e}")
         sys.exit(1)
 
     print("Parsing FAQs ...")
     try:
-        faqs = extract_faqs(html)
+        faqs: List[Faq] = extract_faqs(html)
     except Exception as e:
         print(f"Error: failed to parse FAQs from page: {e}")
         sys.exit(1)
@@ -45,7 +51,7 @@ def main():
         print("No FAQs found on the page; nothing to write. Exiting.")
         sys.exit(1)
 
-    output_file = f"{title}.pdf"
+    output_file: str = f"{title}.pdf"
 
     print("Writing PDF ...")
     try:

@@ -5,17 +5,22 @@ Fetches a micro1.ai interview-prep page and extracts FAQ question/answer
 pairs from its HTML.
 """
 
+from typing import Dict, List, Optional
+
 import requests
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 
-BASE_URL = "https://www.micro1.ai/interview-prep/{slug}"
+from models import Faq
 
-HEADERS = {
+BASE_URL: str = "https://www.micro1.ai/interview-prep/{slug}"
+
+HEADERS: Dict[str, str] = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
 
-def fetch_html(page_slug, timeout=10):
+def fetch_html(page_slug: str, timeout: int = 10) -> str:
     """
     Fetch the HTML for a given interview-prep page slug.
 
@@ -29,7 +34,7 @@ def fetch_html(page_slug, timeout=10):
     return response.text
 
 
-def extract_faqs(html):
+def extract_faqs(html: str) -> List[Faq]:
     """
     Extract FAQ title/answer pairs from HTML using BeautifulSoup.
     'answer' keeps the first paragraph only (used for the PDF, unchanged).
@@ -37,24 +42,28 @@ def extract_faqs(html):
     to support multiple answers per question).
     """
     soup = BeautifulSoup(html, "html.parser")
-    faqs = []
+    faqs: List[Faq] = []
 
-    titles = soup.find_all("h3", class_="faq_title")
+    titles: List[Tag] = soup.find_all("h3", class_="faq_title")
 
     for title_tag in titles:
-        title = title_tag.get_text(strip=True)
+        question: str = title_tag.get_text(strip=True)
 
-        faq_item = title_tag.find_parent(class_="faq_item")
+        faq_item: Optional[Tag] = title_tag.find_parent(class_="faq_item")
+        answer_div: Optional[Tag]
         if faq_item:
             answer_div = faq_item.find("div", class_="faq_answer")
         else:
             answer_div = title_tag.find_next("div", class_="faq_answer")
 
+        answer: Optional[str]
+        answers: List[str]
+
         if answer_div:
-            p_tag = answer_div.find("p")
+            p_tag: Optional[Tag] = answer_div.find("p")
             answer = p_tag.get_text(strip=True) if p_tag else answer_div.get_text(strip=True)
 
-            p_tags = answer_div.find_all("p")
+            p_tags: List[Tag] = answer_div.find_all("p")
             if p_tags:
                 answers = [p.get_text(strip=True) for p in p_tags if p.get_text(strip=True)]
             else:
@@ -63,6 +72,6 @@ def extract_faqs(html):
             answer = None
             answers = []
 
-        faqs.append({"title": title, "answer": answer, "answers": answers})
+        faqs.append({"question": question, "answer": answer, "answers": answers})
 
     return faqs

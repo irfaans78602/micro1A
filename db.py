@@ -6,14 +6,18 @@ using SQLAlchemy, replacing existing rows for a given page title.
 """
 
 import os
+from typing import Dict, List, Tuple, Union
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
+
+from models import Faq
 
 # Connection string is read from the environment so credentials/hosts
 # are never hardcoded in source. Raises if the env var isn't set.
 try:
-    DB_CONN_STR = os.environ["MICRO1_DB_CONN_STR"]
+    DB_CONN_STR: str = os.environ["MICRO1_DB_CONN_STR"]
 except KeyError as e:
     raise RuntimeError(
         "MICRO1_DB_CONN_STR environment variable is not set. "
@@ -23,10 +27,13 @@ except KeyError as e:
 
 # One engine per process; SQLAlchemy pools connections internally, so this
 # is created once at import time rather than per call.
-engine = create_engine(DB_CONN_STR, fast_executemany=True)
+engine: Engine = create_engine(DB_CONN_STR, fast_executemany=True)
+
+# A single row bound for the INSERT statement below.
+FaqRow = Dict[str, Union[str, int]]
 
 
-def replace_faqs_in_sql(faqs, page_title):
+def replace_faqs_in_sql(faqs: List[Faq], page_title: str) -> Tuple[int, int]:
     """
     Delete existing rows for page_title and insert the freshly-scraped
     rows, all within a single transaction. If anything fails (connection
@@ -50,10 +57,10 @@ def replace_faqs_in_sql(faqs, page_title):
         """
     )
 
-    rows = []
+    rows: List[FaqRow] = []
     for i, faq in enumerate(faqs, 1):
-        question = faq["title"] or ""
-        answers = faq["answers"] or [faq["answer"] or ""]
+        question: str = faq["question"] or ""
+        answers: List[str] = faq["answers"] or [faq["answer"] or ""]
 
         for ans in answers:
             rows.append(
@@ -65,7 +72,7 @@ def replace_faqs_in_sql(faqs, page_title):
         # on a clean exit, and rolls back automatically if anything raises.
         with engine.begin() as conn:
             result = conn.execute(delete_sql, {"title": page_title})
-            deleted_count = result.rowcount
+            deleted_count: int = result.rowcount
 
             if rows:
                 conn.execute(insert_sql, rows)
