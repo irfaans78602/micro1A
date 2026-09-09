@@ -7,7 +7,10 @@ on:
 
 jobs:
   sync-faqs:
-    runs-on: ubuntu-latest
+    # Runs on your own machine (self-hosted runner) so it can reach your
+    # local SQL Server. Requires the runner agent installed and running
+    # on that machine (Settings → Actions → Runners in this repo).
+    runs-on: self-hosted
 
     # The connection string is never hardcoded here — it's pulled from a
     # GitHub Actions secret configured in:
@@ -26,12 +29,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install ODBC Driver 17 for SQL Server
-        run: |
-          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-          curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
-          sudo apt-get update
-          ACCEPT_EULA=Y sudo apt-get install -y msodbcsql17
+      # No ODBC driver install step needed here — this runs on your own
+      # Windows machine, which already has ODBC Driver 17 for SQL Server
+      # installed (the same one you use when running the script manually).
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt
