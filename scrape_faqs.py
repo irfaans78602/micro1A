@@ -4,7 +4,8 @@ from bs4 import BeautifulSoup
 import requests
 from fpdf import FPDF
 from fpdf.errors import FPDFException
-import pyodbc
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 
 def extract_faqs(html):
@@ -137,11 +138,13 @@ def write_faqs_to_pdf(faqs, output_file, page_title):
 
 
 DB_CONN_STR = (
-    "DRIVER={ODBC Driver 17 for SQL Server};"
-    "SERVER=localhost;"
-    "DATABASE=micro1;"
-    "Trusted_Connection=yes;"
+    "mssql+pyodbc://@localhost/micro1"
+    "?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes"
 )
+
+# One engine per process; SQLAlchemy pools connections internally, so this
+# is created once at import time rather than per call.
+engine = create_engine(DB_CONN_STR, fast_executemany=True)
 
 
 def replace_faqs_in_sql(faqs, page_title):
@@ -157,10 +160,13 @@ def replace_faqs_in_sql(faqs, page_title):
 
     Returns (deleted_count, inserted_count).
     """
-    insert_sql = """
+    delete_sql = text("DELETE FROM faqs WHERE title = :title")
+    insert_sql = text(
+        """
         INSERT INTO faqs (title, question_no, question, answer)
-        VALUES (?, ?, ?, ?)
-    """
+        VALUES (:title, :question_no, :question, :answer)
+        """
+    )
 
     rows = []
     for i, faq in enumerate(faqs, 1):
@@ -168,35 +174,24 @@ def replace_faqs_in_sql(faqs, page_title):
         answers = faq["answers"] or [faq["answer"] or ""]
 
         for ans in answers:
-            rows.append((page_title, i, question, ans))
+            rows.append(
+                {"title": page_title, "question_no": i, "question": question, "answer": ans}
+            )
 
-    conn = None
     try:
-        conn = pyodbc.connect(DB_CONN_STR, timeout=10)
-        conn.autocommit = False
-        cursor = conn.cursor()
+        # engine.begin() opens a connection, starts a transaction, commits
+        # on a clean exit, and rolls back automatically if anything raises.
+        with engine.begin() as conn:
+            result = conn.execute(delete_sql, {"title": page_title})
+            deleted_count = result.rowcount
 
-        cursor.execute("DELETE FROM faqs WHERE title = ?", (page_title,))
-        deleted_count = cursor.rowcount
+            if rows:
+                conn.execute(insert_sql, rows)
 
-        if rows:
-            cursor.executemany(insert_sql, rows)
-
-        conn.commit()
-        cursor.close()
         return deleted_count, len(rows)
 
-    except pyodbc.Error as e:
-        if conn is not None:
-            try:
-                conn.rollback()
-            except pyodbc.Error:
-                pass
+    except SQLAlchemyError as e:
         raise RuntimeError(f"Database operation failed and was rolled back: {e}") from e
-
-    finally:
-        if conn is not None:
-            conn.close()
 
 
 def main():
@@ -254,7 +249,7 @@ def main():
         print(f"Error: {e}")
         print("No changes were committed to the database.")
         sys.exit(1)
-    except pyodbc.Error as e:
+    except SQLAlchemyError as e:
         print(f"Error: could not connect to the database: {e}")
         sys.exit(1)
 
