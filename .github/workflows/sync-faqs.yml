@@ -1,0 +1,40 @@
+name: Sync FAQs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  sync-faqs:
+    runs-on: ubuntu-latest
+
+    # The connection string is never hardcoded here — it's pulled from a
+    # GitHub Actions secret configured in:
+    # Repo → Settings → Secrets and variables → Actions → New repository secret
+    # Name: MICRO1_DB_CONN_STR
+    # Value: mssql+pyodbc://user:password@host/micro1?driver=ODBC+Driver+17+for+SQL+Server
+    env:
+      MICRO1_DB_CONN_STR: ${{ secrets.MICRO1_DB_CONN_STR }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ODBC Driver 17 for SQL Server
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          ACCEPT_EULA=Y sudo apt-get install -y msodbcsql17
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run FAQ sync
+        run: python scrape_faqs.py python-developer-interview-questions
